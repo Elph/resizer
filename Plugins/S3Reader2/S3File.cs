@@ -130,6 +130,11 @@ namespace ImageResizer.Plugins.S3Reader2 {
         public string GetCacheKey(bool includeModifiedDate) {
             return VirtualPath + (includeModifiedDate ? ("_" + ModifiedDateUTC.Ticks.ToString()) : "");
         }
+
+        public string GetBucket()
+        {
+            return bucket;
+        }
     }
 }
 

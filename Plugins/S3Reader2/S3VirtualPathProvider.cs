@@ -97,6 +97,10 @@ namespace ImageResizer.Plugins.S3Reader2
         /// Defaults to true. Also, no modified date information is provided, so the cache never gets updated. Requires 1 request instead of 2 to download the image.
         /// </summary>
         public bool FastMode { get { return _fastMode; } set { _fastMode = value; } }
+
+        private string _fallbackBucket;
+        public string FallbackBucket { get { return _fallbackBucket; } set { _fallbackBucket = value; } }
+
         /// <summary>
         /// Create and configure a virtual path provider. 
         /// </summary>
@@ -106,7 +110,8 @@ namespace ImageResizer.Plugins.S3Reader2
         /// <param name="slidingMetadataExpiration"></param>
         /// <param name="bucketFilterCallback">You should validate that the requested bucket is your own. If you only want one bucket, just prefix your bucket to the path.</param>
         /// <param name="fastMode">If true, existence of bucket and key is assumed as long as prefix is present. Also, no modified date information is provided to the image resizer, so the cache never gets updated. Requires 1 request instead of 2 to download the image.</param>
-        public S3VirtualPathProvider(AmazonS3Client s3client, String virtualFilesystemPrefix, TimeSpan absoluteMetadataExpiration, TimeSpan slidingMetadataExpiration, RewriteBucketAndKeyPath bucketFilterCallback, Boolean fastMode)
+        /// <param name="fallbackBucket">If not found on the bucket, try it on the fallback</param>
+        public S3VirtualPathProvider(AmazonS3Client s3client, String virtualFilesystemPrefix, TimeSpan absoluteMetadataExpiration, TimeSpan slidingMetadataExpiration, RewriteBucketAndKeyPath bucketFilterCallback, Boolean fastMode, String fallbackBucket)
             : base()
         {
             this.s3Client = s3client;
@@ -115,6 +120,7 @@ namespace ImageResizer.Plugins.S3Reader2
             this.MetadataSlidingExpiration = slidingMetadataExpiration;
             this.PreS3RequestFilter += bucketFilterCallback;
             this.FastMode = fastMode;
+            this.FallbackBucket = fallbackBucket;
         }
 
 
@@ -141,7 +147,7 @@ namespace ImageResizer.Plugins.S3Reader2
         {
             if (IsPathVirtual(virtualPath))
             {
-                return new S3File(virtualPath, this).Exists;
+                return GetS3File(virtualPath).Exists;
             }
             else
                 return Previous.FileExists(virtualPath);
@@ -151,10 +157,22 @@ namespace ImageResizer.Plugins.S3Reader2
         public override VirtualFile GetFile(string virtualPath)
         {
             if (IsPathVirtual(virtualPath))
-
-                return new S3File(virtualPath, this);
+            {
+                return GetS3File(virtualPath);
+            }
             else
                 return Previous.GetFile(virtualPath);
+        }
+
+        private S3File GetS3File(string virtualPath)
+        {
+            var file = new S3File(virtualPath, this);
+            if (!file.Exists && string.IsNullOrEmpty(FallbackBucket))
+            {
+                var fallbackVirtualPath = virtualPath.Replace(file.GetBucket(), FallbackBucket);
+                return new S3File(fallbackVirtualPath, this);
+            }
+            return file;
         }
 
         /**
@@ -182,11 +200,11 @@ namespace ImageResizer.Plugins.S3Reader2
 
 
         public bool FileExists(string virtualPath, System.Collections.Specialized.NameValueCollection queryString) {
-            return IsPathVirtual(virtualPath) && new S3File(virtualPath, this).Exists;
+            return IsPathVirtual(virtualPath) && FileExists(virtualPath);
         }
 
         public IVirtualFile GetFile(string virtualPath, System.Collections.Specialized.NameValueCollection queryString) {
-            return (IsPathVirtual(virtualPath)) ? new S3File(virtualPath, this) : null;
+            return (IsPathVirtual(virtualPath)) ? GetS3File(virtualPath): null;
         }
     }
 

@@ -16,7 +16,7 @@ using ImageResizer.Configuration.Xml;
 namespace ImageResizer.Plugins.S3Reader2 {
     public class S3Reader2 : IPlugin, IMultiInstancePlugin, IRedactDiagnostics {
 
-        string buckets, vpath;
+        string buckets, vpath, fallbackBucket;
         bool includeModifiedDate = false;
         bool asVpp = false;
         AmazonS3Config s3config = null;
@@ -25,6 +25,7 @@ namespace ImageResizer.Plugins.S3Reader2 {
             s3config = new AmazonS3Config();
 
             buckets = args["buckets"];
+            fallbackBucket = args["fallback"];
             vpath = args["prefix"];
 
             asVpp = NameValueCollectionExtensions.Get(args, "vpp", true);
@@ -126,11 +127,10 @@ namespace ImageResizer.Plugins.S3Reader2 {
             for (int i = 0; i < bucketArray.Length; i++)
                 bucketArray[i] = bucketArray[i].Trim();
 
-
             vpp = new S3VirtualPathProvider(this.S3Client, vpath,TimeSpan.MaxValue, new TimeSpan(0, 1, 0, 0),  delegate(S3VirtualPathProvider s, S3PathEventArgs ev) {
                 if (bucketArray == null) ev.ThrowException();
                 ev.AssertBucketMatches(bucketArray);
-            }, !includeModifiedDate);
+            }, !includeModifiedDate, fallbackBucket);
 
             
 
