@@ -167,12 +167,14 @@ namespace ImageResizer.Plugins.S3Reader2
         private S3File GetS3File(string virtualPath)
         {
             var file = new S3File(virtualPath, this);
-            if (!file.Exists && string.IsNullOrEmpty(FallbackBucket))
-            {
-                var fallbackVirtualPath = virtualPath.Replace(file.GetBucket(), FallbackBucket);
-                return new S3File(fallbackVirtualPath, this);
-            }
+            if (!file.Exists && !string.IsNullOrEmpty(FallbackBucket))
+                return new S3File(GetFallbackVirtualPath(file), this);
             return file;
+        }
+
+        private string GetFallbackVirtualPath(S3File file)
+        {
+            return file.VirtualPath.Replace(file.GetBucket(), FallbackBucket);
         }
 
         /**
